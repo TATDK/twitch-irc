@@ -36,6 +36,7 @@
   ],
   "main": "./index",
   "dependencies": {
+    "async": "0.9",
     "body-parser": "latest",
     "commander": "latest",
     "cron": "latest",
