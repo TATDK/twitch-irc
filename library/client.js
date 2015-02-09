@@ -41,6 +41,9 @@ var Server   = 'irc.twitch.tv';
 var Tags     = false;
 var Port     = 443;
 var Channels = [];
+var ChannelsJoinQueue = [];
+var ChannelsJoinCounter = 0;
+var ChannelsMessageQueue = {};
 
 var CommandError = '';
 var ModsList     = [];
@@ -871,7 +874,20 @@ client.prototype.clearChannels = function clearChannels() { Channels = []; };
  * @params {string} channel
  */
 client.prototype.join = function join(channel) {
-    if (this.socket !== null) { this.socket.crlfWrite('JOIN ' + Utils.addHash(channel).toLowerCase()); }
+    if (this.socket !== null) {
+        if (ChannelsJoinCounter < 50) {
+            ChannelsJoinCounter++;
+            this.socket.crlfWrite('JOIN ' + Utils.addHash(channel).toLowerCase());
+            setTimeout(function() {
+                ChannelsJoinCounter--;
+                if (ChannelsJoinCounter.length > 1) {
+                    self.join(ChannelsJoinQueue.shift());
+                }
+            }, 15500);
+        } else {
+            ChannelsJoinCounter.push(channel);
+        }
+    }
 };
 
 /**
@@ -898,7 +914,24 @@ client.prototype.ping = function ping() {
  * @params {string} message
  */
 client.prototype.say = function say(channel, message, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :' + message); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :' + message);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.say(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, message, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -909,7 +942,24 @@ client.prototype.say = function say(channel, message, cb) {
  * @params {string} message
  */
 client.prototype.action = function action(channel, message, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' : \x01ACTION ' + message + '\x01'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' : \x01ACTION ' + message + '\x01');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.action(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, message, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -920,7 +970,24 @@ client.prototype.action = function action(channel, message, cb) {
  * @params {string} color
  */
 client.prototype.color = function color(channel, color, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.color ' + color); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.color ' + color);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.color(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, color, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -931,7 +998,24 @@ client.prototype.color = function color(channel, color, cb) {
  * @params {string} target
  */
 client.prototype.host = function host(channel, target, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.host ' + target); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.host ' + target);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.host(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, target, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -941,7 +1025,24 @@ client.prototype.host = function host(channel, target, cb) {
  * @params {string} channel
  */
 client.prototype.unhost = function unhost(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.unhost'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.unhost');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.unhost(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -954,7 +1055,24 @@ client.prototype.unhost = function unhost(channel, cb) {
  */
 client.prototype.timeout = function timeout(channel, username, seconds, cb) {
     seconds = typeof seconds !== 'undefined' ? seconds : 300;
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.timeout ' + username + ' ' + seconds); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.timeout ' + username + ' ' + seconds);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.timeout(nextMessage[0], nextMessage[1], nextMessage[2], nextMessage[3]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, username, seconds, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -965,7 +1083,24 @@ client.prototype.timeout = function timeout(channel, username, seconds, cb) {
  * @params {string} username
  */
 client.prototype.ban = function ban(channel, username, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.ban ' + username); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.ban ' + username);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.ban(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, username, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -976,7 +1111,24 @@ client.prototype.ban = function ban(channel, username, cb) {
  * @params {string} username
  */
 client.prototype.unban = function unban(channel, username, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.unban ' + username); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.unban ' + username);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.unban(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, username, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -988,7 +1140,24 @@ client.prototype.unban = function unban(channel, username, cb) {
  */
 client.prototype.slow = function slow(channel, seconds, cb) {
     seconds = typeof seconds !== 'undefined' ? seconds : 300;
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.slow ' + seconds); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.slow ' + seconds);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.slow(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, seconds, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -998,7 +1167,24 @@ client.prototype.slow = function slow(channel, seconds, cb) {
  * @params {string} channel
  */
 client.prototype.slowoff = function slowoff(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.slowoff'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.slowoff');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.slowoff(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1008,7 +1194,24 @@ client.prototype.slowoff = function slowoff(channel, cb) {
  * @params {string} channel
  */
 client.prototype.subscribers = function subscriberString(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.subscribers'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.subscribers');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.subscribers(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1018,7 +1221,24 @@ client.prototype.subscribers = function subscriberString(channel, cb) {
  * @params {string} channel
  */
 client.prototype.subscribersoff = function subscribersoff(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.subscribersoff'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.subscribersoff');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.subscribersoff(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1028,7 +1248,24 @@ client.prototype.subscribersoff = function subscribersoff(channel, cb) {
  * @params {string} channel
  */
 client.prototype.clear = function clear(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.clear'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.clear');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.clear(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1038,7 +1275,24 @@ client.prototype.clear = function clear(channel, cb) {
  * @params {string} channel
  */
 client.prototype.r9kbeta = function r9kbeta(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.r9kbeta'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.r9kbeta');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.r9kbeta(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1048,7 +1302,24 @@ client.prototype.r9kbeta = function r9kbeta(channel, cb) {
  * @params {string} channel
  */
 client.prototype.r9kbetaoff = function r9kbetaoff(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.r9kbetaoff'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.r9kbetaoff');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.r9kbetaoff(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1059,7 +1330,24 @@ client.prototype.r9kbetaoff = function r9kbetaoff(channel, cb) {
  * @params {string} username
  */
 client.prototype.mod = function mod(channel, username, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.mod ' + username); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.mod ' + username);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.mod(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, username, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1070,7 +1358,24 @@ client.prototype.mod = function mod(channel, username, cb) {
  * @params {string} username
  */
 client.prototype.unmod = function mod(channel, username, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.unmod ' + username); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.unmod ' + username);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.unmod(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, username, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1084,7 +1389,24 @@ client.prototype.commercial = function commercial(channel, seconds, cb) {
     seconds = typeof seconds !== 'undefined' ? seconds : 30;
     var availableLengths = [30, 60, 90, 120, 150, 180];
     if (availableLengths.indexOf(seconds) === -1) { seconds = 30; }
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.commercial ' + seconds); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.commercial ' + seconds);
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.timeout(nextMessage[0], nextMessage[1], nextMessage[2]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, seconds, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { CommandError !== '' && cb(CommandError) && cb(null); }, 250); }
 };
 
@@ -1095,7 +1417,24 @@ client.prototype.commercial = function commercial(channel, seconds, cb) {
  * @params {string} channel
  */
 client.prototype.mods = function mods(channel, cb) {
-    if (this.socket !== null) { this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.mods'); }
+    if (this.socket !== null) {
+        if (ChannelsMessageQueue[channel] == null) {
+            ChannelsMessageQueue[channel] = { count: 0, queue: [] };
+        }
+        if (ChannelsMessageQueue[channel].count < this.isMod(channel, this.options.identity.username) ? 100 : 20) {
+            ChannelsMessageQueue[channel].count++;
+            this.socket.crlfWrite('PRIVMSG ' + Utils.addHash(channel).toLowerCase() + ' :.mods');
+            setTimeout(function() {
+                ChannelsMessageQueue[channel].count--;
+                if (ChannelsMessageQueue[channel].queue.length > 0) {
+                    var nextMessage = ChannelsMessageQueue[channel].queue.shift();
+                    self.mods(nextMessage[0], nextMessage[1]);
+                }
+            }, 30500);
+        } else {
+            ChannelsMessageQueue[channel].queue.push([channel, cb]);
+        }
+    }
     if (typeof cb === 'function') { setTimeout(function() { ModsList.length !== 0 && cb(ModsList) && cb([]); }, 250); }
 };
 
