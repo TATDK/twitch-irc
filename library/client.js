@@ -69,6 +69,7 @@ var client = function client(options) {
     this.stream          = Stream().on('data', this._handleMessage.bind(this));
     this.socket          = null;
     this.moderators      = {};
+    this.myself          = '';
 
     this.gracefulReconnection = false;
 
@@ -155,42 +156,47 @@ client.prototype._handleMessage = function _handleMessage(message) {
     var messageFrom = message.prefix;
     if (message.prefix.indexOf('@') >= 0) { messageFrom = message.parseHostmaskFromPrefix().nickname; }
 
+    if (message.command === '001') { self.myself = message.params[0]; }
+
     if (!Utils.isEmpty(message.tags) && Tags) {
         var username = messageFrom;
-        self.emit('tags', message.tags);
 
-        Data.createTempUserData(username);
+        if (username !== 'tmi.twitch.tv') {
+            self.emit('tags', message.tags);
 
-        if (typeof message.tags.color === 'string') {
-            self.emit('usercolor', username, message.tags.color);
-            Data.tempUserData[username].color = message.tags.color;
-        }
+            Data.createTempUserData(username);
 
-        if (typeof message.tags.emotes === 'string') {
-            self.emit('emoteset', username, message.tags.emotes);
-
-            var emoticons = message.tags.emotes.split('/');
-            var emotes    = {};
-            for (var i = 0; i < emoticons.length; i++) {
-                var parts = emoticons[i].split(':');
-                emotes[parts[0]] = parts[1].split(',');
+            if (typeof message.tags.color === 'string') {
+                self.emit('usercolor', username, message.tags.color);
+                Data.tempUserData[username].color = message.tags.color;
             }
-            Data.tempUserData[username].emote = emotes;
-        }
 
-        if (message.tags.subscriber === '1') {
-            self.emit('specialuser', username, 'subscriber');
-            Data.tempUserData[username].special.push('subscriber');
-        }
+            if (typeof message.tags.emotes === 'string') {
+                self.emit('emoteset', username, message.tags.emotes);
 
-        if (message.tags.turbo === '1') {
-            self.emit('specialuser', username, 'turbo');
-            Data.tempUserData[username].special.push('turbo');
-        }
+                var emoticons = message.tags.emotes.split('/');
+                var emotes = {};
+                for (var i = 0; i < emoticons.length; i++) {
+                    var parts = emoticons[i].split(':');
+                    emotes[parts[0]] = parts[1].split(',');
+                }
+                Data.tempUserData[username].emote = emotes;
+            }
 
-        if (typeof message.tags.user_type === 'string') {
-            self.emit('specialuser', username, message.tags.user_type);
-            Data.tempUserData[username].special.push(message.tags.user_type);
+            if (message.tags.subscriber === '1') {
+                self.emit('specialuser', username, 'subscriber');
+                Data.tempUserData[username].special.push('subscriber');
+            }
+
+            if (message.tags.turbo === '1') {
+                self.emit('specialuser', username, 'turbo');
+                Data.tempUserData[username].special.push('turbo');
+            }
+
+            if (typeof message.tags.user_type === 'string') {
+                self.emit('specialuser', username, message.tags.user_type);
+                Data.tempUserData[username].special.push(message.tags.user_type);
+            }
         }
     }
 
@@ -236,7 +242,8 @@ client.prototype._handleMessage = function _handleMessage(message) {
 
             if (twitchClient >= 2) { Tags = true; }
             if (Tags) {
-                self.socket.crlfWrite('CAP REQ :twitch.tv/tags');
+                self.socket.crlfWrite('CAP REQ :twitch.tv/tags twitch.tv/commands');
+                self.socket.crlfWrite('TWITCHCLIENT 4');
             } else {
                 self.socket.crlfWrite('TWITCHCLIENT ' + twitchClient);
             }
@@ -635,7 +642,7 @@ client.prototype._handleMessage = function _handleMessage(message) {
                 self.emit('twitchnotify', message.params[0], message.params[1]);
 
                 switch(true) {
-                    case (String(message.params[1]).contains('just subscribed!') && !String(message.params[1]).contains('in a row!')):
+                    case (String(message.params[1]).contains('just subscribed') && !String(message.params[1]).contains('in a row')):
                         /**
                          * Someone has subscribed to a channel.
                          *
@@ -646,7 +653,7 @@ client.prototype._handleMessage = function _handleMessage(message) {
                         self.logger.event('subscription');
                         self.emit('subscription', message.params[0], message.params[1].split(' ')[0]);
                         break;
-                    case (String(message.params[1]).contains('just subscribed!') && String(message.params[1]).contains('in a row!')):
+                    case (String(message.params[1]).contains('subscribed') && String(message.params[1]).contains('in a row')):
                         /**
                          * Someone has shared his sub anniversary.
                          *
@@ -690,17 +697,17 @@ client.prototype._handleMessage = function _handleMessage(message) {
                 }
                 Data.createChannelUserData(message.params[0], username, function(done) {
                     if (String(message.params[1]).startsWith('\u0001ACTION')) {
-                        self.emit('action', message.params[0], Data.channelUserData[message.params[0]][username], String(message.params[1]).between('\u0001ACTION ', '\u0001').s);
                         self.logger.event('action');
                         self.logger.chat('[' + message.params[0] + '] ' + username + ': ' + String(message.params[1]).between('\u0001ACTION ', '\u0001').s);
+                        self.emit('action', message.params[0], Data.channelUserData[message.params[0]][username], String(message.params[1]).between('\u0001ACTION ', '\u0001').s);
                     } else if (String(message.params[1]).startsWith(' \x01ACTION')) {
-                        self.emit('action', message.params[0], Data.channelUserData[message.params[0]][username], String(message.params[1]).between(' \x01ACTION ', '\x01').s);
                         self.logger.event('action');
                         self.logger.chat('[' + message.params[0] + '] ' + username + ': ' + String(message.params[1]).between(' \x01ACTION ', '\x01').s);
+                        self.emit('action', message.params[0], Data.channelUserData[message.params[0]][username], String(message.params[1]).between(' \x01ACTION ', '\x01').s);
                     } else {
-                        self.emit('chat', message.params[0], Data.channelUserData[message.params[0]][username], message.params[1]);
                         self.logger.event('chat');
                         self.logger.chat('[' + message.params[0] + '] ' + username + ': ' + message.params[1]);
+                        self.emit('chat', message.params[0], Data.channelUserData[message.params[0]][username], message.params[1]);
                         if (message.params[1].charAt(0) === '!') {
                             var command = message.params[1].split(' ')[0].toLowerCase();
                             var args    = message.params[1].split(' ');
@@ -898,6 +905,8 @@ client.prototype.join = function join(channel) {
 client.prototype.part = function part(channel) {
     if (this.socket !== null) { this.socket.crlfWrite('PART ' + Utils.addHash(channel).toLowerCase()); }
 };
+
+client.prototype.leave = client.prototype.part;
 
 /**
  * Send a PING to the server.
